@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --canvas:#EFEFE8;
+    --panel:#FFFFFF;
+    --ink:#15171C;
+    --ink-soft:#5B5E56;
+    --muted:#9A9C93;
+    --line:#DCDCD2;
+    --accent:#FF4B2B;
+    --accent-ink:#FFFFFF;
+    --success:#1FB868;
+    --radius:18px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+
+  body{
+    background:var(--canvas);
+    background-image:
+      radial-gradient(circle, rgba(21,23,28,0.08) 1px, transparent 1px);
+    background-size: 22px 22px;
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 16px;
+  }
+
+  .mono{ font-family:'Space Mono', monospace; }
+
+  /* --- Finder pattern motif (the corner squares of a real QR code) --- */
+  .finder{
+    width:26px;height:26px;
+    border:5px solid var(--ink);
+    border-radius:6px;
+    position:relative;
+    flex-shrink:0;
+  }
+  .finder::after{
+    content:"";
+    position:absolute;
+    top:6px;left:6px;right:6px;bottom:6px;
+    background:var(--ink);
+    border-radius:2px;
+  }
+  .finder.accent{ border-color:var(--accent); }
+  .finder.accent::after{ background:var(--accent); }
+
+  .app{
+    width:100%;
+    max-width:920px;
+  }
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:20px;
+    padding:0 4px;
+  }
+  .topbar .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .topbar h1{
+    font-size:15px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    margin:0;
+    font-weight:700;
+  }
+  .topbar .tag{
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+  }
+
+  .card{
+    background:var(--panel);
+    border:1.5px solid var(--ink);
+    border-radius:var(--radius);
+    box-shadow: 8px 8px 0 rgba(21,23,28,0.9);
+    overflow:hidden;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.05fr 0.95fr;
+  }
+
+  @media (max-width: 760px){
+    .grid{ grid-template-columns: 1fr; }
+    .preview-col{ order:-1; }
+  }
+
+  /* ---------- Left: controls ---------- */
+  .controls-col{
+    padding:32px;
+    border-right:1.5px solid var(--line);
+  }
+  @media (max-width:760px){
+    .controls-col{ border-right:none; border-top:1.5px solid var(--line); }
+  }
+
+  .field{ margin-bottom:22px; }
+  .field label{
+    display:block;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+  }
+
+  textarea{
+    width:100%;
+    resize:none;
+    min-height:96px;
+    padding:14px;
+    border:1.5px solid var(--ink);
+    border-radius:12px;
+    font-family:'Inter', sans-serif;
+    font-size:14.5px;
+    line-height:1.5;
+    color:var(--ink);
+    background:#FCFCFA;
+    outline:none;
+    transition:box-shadow .15s ease;
+  }
+  textarea:focus{ box-shadow: 0 0 0 3px rgba(255,75,43,0.18); border-color:var(--accent); }
+  textarea::placeholder{ color:var(--muted); }
+
+  .chips{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+    flex-wrap:wrap;
+  }
+  .chip{
+    font-family:'Space Mono', monospace;
+    font-size:11.5px;
+    padding:6px 11px;
+    border-radius:20px;
+    border:1.5px solid var(--ink);
+    background:var(--panel);
+    cursor:pointer;
+    transition: transform .1s ease, background .15s ease, color .15s ease;
+  }
+  .chip:hover{ background:var(--ink); color:var(--panel); transform:translateY(-1px); }
+
+  .row2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+
+  .swatches{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .swatch-input{
+    -webkit-appearance:none;
+    appearance:none;
+    width:38px;height:38px;
+    border-radius:10px;
+    border:1.5px solid var(--ink);
+    padding:0;
+    cursor:pointer;
+    background:none;
+  }
+  .swatch-input::-webkit-color-swatch-wrapper{ padding:3px; }
+  .swatch-input::-webkit-color-swatch{ border-radius:7px; border:none; }
+
+  .presets{
+    display:flex;
+    gap:7px;
+  }
+  .preset-dot{
+    width:22px;height:22px;
+    border-radius:50%;
+    border:1.5px solid var(--ink);
+    cursor:pointer;
+  }
+
+  .slider-row{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  input[type=range]{
+    flex:1;
+    accent-color:var(--accent);
+  }
+  .slider-val{
+    font-family:'Space Mono', monospace;
+    font-size:12.5px;
+    background:var(--ink);
+    color:var(--panel);
+    padding:3px 8px;
+    border-radius:6px;
+    min-width:52px;
+    text-align:center;
+  }
+
+  .download-btn{
+    width:100%;
+    padding:15px;
+    border-radius:12px;
+    border:1.5px solid var(--ink);
+    background:var(--accent);
+    color:var(--accent-ink);
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    font-size:13.5px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    box-shadow: 4px 4px 0 rgba(21,23,28,0.9);
+    transition: transform .1s ease, box-shadow .1s ease;
+  }
+  .download-btn:hover{ transform:translate(-2px,-2px); box-shadow: 6px 6px 0 rgba(21,23,28,0.9); }
+  .download-btn:active{ transform:translate(0,0); box-shadow: 2px 2px 0 rgba(21,23,28,0.9); }
+  .download-btn.copied{ background:var(--success); }
+
+  /* ---------- Right: preview ---------- */
+  .preview-col{
+    padding:32px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background:
+      linear-gradient(var(--canvas) 0%, var(--canvas) 100%);
+    position:relative;
+  }
+
+  .frame{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+  }
+
+  .finder-row{
+    display:flex;
+    justify-content:space-between;
+    width:100%;
+  }
+
+  .qr-stage{
+    background:#FFFFFF;
+    border-radius:14px;
+    padding:18px;
+    border:1.5px solid var(--ink);
+  }
+  #qrcode{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  #qrcode img, #qrcode canvas{
+    display:block;
+    border-radius:4px;
+  }
+
+  .preview-caption{
+    font-family:'Space Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    text-align:center;
+    letter-spacing:0.03em;
+    max-width:220px;
+    overflow-wrap:break-word;
+  }
+
+  .footer-note{
+    text-align:center;
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:18px;
+    letter-spacing:0.02em;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="finder accent"></div>
+      <div>
+        <h1>QR Generator</h1>
+        <div class="tag">buat &amp; unduh, langsung jadi</div>
+      </div>
+    </div>
+    <div class="finder"></div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+
+      <!-- CONTROLS -->
+      <div class="controls-col">
+
+        <div class="field">
+          <label for="qrtext">Teks atau tautan</label>
+          <textarea id="qrtext" placeholder="Tulis atau tempel link, teks, nomor WA, dll...">https://claude.ai</textarea>
+          <div class="chips">
+            <div class="chip" data-fill="https://">🔗 Link</div>
+            <div class="chip" data-fill="https://wa.me/62812xxxxxxx?text=Halo!">💬 WhatsApp</div>
+            <div class="chip" data-fill="WIFI:T:WPA;S:NamaWiFi;P:passwordwifi;;">📶 WiFi</div>
+            <div class="chip" data-fill="Ditulis dengan QR Generator ✨">📝 Teks bebas</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Warna</label>
+          <div class="row2">
+            <div class="swatches">
+              <input type="color" id="colorDark" class="swatch-input" value="#15171C">
+              <span style="font-size:12px;color:var(--ink-soft)">Kode</span>
+            </div>
+            <div class="swatches">
+              <input type="color" id="colorLight" class="swatch-input" value="#ffffff">
+              <span style="font-size:12px;color:var(--ink-soft)">Latar</span>
+            </div>
+          </div>
+          <div class="presets" style="margin-top:12px;">
+            <div class="preset-dot" style="background:#15171C" data-preset="#15171C"></div>
+            <div class="preset-dot" style="background:#FF4B2B" data-preset="#FF4B2B"></div>
+            <div class="preset-dot" style="background:#1FB868" data-preset="#1FB868"></div>
+            <div class="preset-dot" style="background:#2B57FF" data-preset="#2B57FF"></div>
+            <div class="preset-dot" style="background:#A02BFF" data-preset="#A02BFF"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Ukuran — <span id="sizeLabel">280px</span></label>
+          <div class="slider-row">
+            <input type="range" id="sizeSlider" min="160" max="480" step="20" value="280">
+          </div>
+        </div>
+
+        <button class="download-btn" id="downloadBtn">⬇ Unduh PNG</button>
+      </div>
+
+      <!-- PREVIEW -->
+      <div class="preview-col">
+        <div class="frame">
+          <div class="finder-row">
+            <div class="finder" style="width:16px;height:16px;border-width:3.5px;"></div>
+            <div class="finder" style="width:16px;height:16px;border-width:3.5px;"></div>
+          </div>
+          <div class="qr-stage">
+            <div id="qrcode"></div>
+          </div>
+          <div class="finder-row">
+            <div class="finder" style="width:16px;height:16px;border-width:3.5px;"></div>
+          </div>
+          <div class="preview-caption" id="preview-caption">Pratinjau langsung — tinggal scan pakai kamera HP</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer-note">Diproses langsung di browser kamu — tidak ada data yang dikirim ke mana pun.</div>
+</div>
+
+<script>
+  const qrContainer = document.getElementById('qrcode');
+  const textInput = document.getElementById('qrtext');
+  const colorDark = document.getElementById('colorDark');
+  const colorLight = document.getElementById('colorLight');
+  const sizeSlider = document.getElementById('sizeSlider');
+  const sizeLabel = document.getElementById('sizeLabel');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const caption = document.getElementById('preview-caption');
+
+  let qr = null;
+  let debounceTimer = null;
+
+  function renderQR(){
+    const text = textInput.value.trim() || ' ';
+    const size = parseInt(sizeSlider.value, 10);
+
+    qrContainer.innerHTML = '';
+    qr = new QRCode(qrContainer, {
+      text: text,
+      width: size,
+      height: size,
+      colorDark: colorDark.value,
+      colorLight: colorLight.value,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+
+    caption.textContent = textInput.value.trim()
+      ? (textInput.value.length > 60 ? textInput.value.slice(0,60) + '…' : textInput.value)
+      : 'Ketik sesuatu untuk mulai membuat QR';
+  }
+
+  function scheduleRender(){
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(renderQR, 180);
+  }
+
+  textInput.addEventListener('input', scheduleRender);
+  colorDark.addEventListener('input', renderQR);
+  colorLight.addEventListener('input', renderQR);
+  sizeSlider.addEventListener('input', () => {
+    sizeLabel.textContent = sizeSlider.value + 'px';
+    scheduleRender();
+  });
+
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      textInput.value = chip.dataset.fill;
+      textInput.focus();
+      renderQR();
+    });
+  });
+
+  document.querySelectorAll('.preset-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      colorDark.value = dot.dataset.preset;
+      renderQR();
+    });
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const canvas = qrContainer.querySelector('canvas');
+    const img = qrContainer.querySelector('img');
+    let dataUrl;
+
+    if (canvas) {
+      dataUrl = canvas.toDataURL('image/png');
+    } else if (img) {
+      dataUrl = img.src;
+    } else {
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'qr-code.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    downloadBtn.classList.add('copied');
+    const original = downloadBtn.innerHTML;
+    downloadBtn.innerHTML = '✓ Berhasil diunduh';
+    setTimeout(() => {
+      downloadBtn.classList.remove('copied');
+      downloadBtn.innerHTML = original;
+    }, 1400);
+  });
+
+  renderQR();
+</script>
+
+</body>
+</html>
